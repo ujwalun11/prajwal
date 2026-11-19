@@ -1,46 +1,54 @@
 name: TRANA checks
+
 on:
   push:
     branches: ["main", "a/**", "b/**", "c/**"]
   pull_request:
     branches: ["main"]
+
 jobs:
-  backend:
-    if: ${{ hashFiles('requirements.txt') != '' }}
+  checks:
+    name: Tests for folders present in this branch
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -r requirements.txt
-      - run: python -m compileall -q backend scenario scripts
-      - run: pytest -q backend/tests
-  field:
-    if: ${{ hashFiles('web/field/package.json') != '' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: Backend compile and tests (when present)
+        shell: bash
+        run: |
+          if [ -f requirements.txt ]; then
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+            python -m compileall -q backend scenario scripts
+            if [ -d backend/tests ]; then pytest -q backend/tests; fi
+          else
+            echo "No backend on this branch; skipping."
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - working-directory: web/field
-        run: npm install
-      - working-directory: web/field
-        run: npm test
-      - working-directory: web/field
-        run: npm run build
-  dashboard:
-    if: ${{ hashFiles('web/dashboard/package.json') != '' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - working-directory: web/dashboard
-        run: npm install
-      - working-directory: web/dashboard
-        run: npm test
-      - working-directory: web/dashboard
-        run: npm run build
+      - name: Field app tests and build (when present)
+        shell: bash
+        run: |
+          if [ -f web/field/package.json ]; then
+            cd web/field
+            npm install
+            npm test
+            npm run build
+          else
+            echo "Field app not present on this branch; skipping."
+          fi
+      - name: Dashboard tests and build (when present)
+        shell: bash
+        run: |
+          if [ -f web/dashboard/package.json ]; then
+            cd web/dashboard
+            npm install
+            npm test
+            npm run build
+          else
+            echo "Dashboard not present on this branch; skipping."
+          fi
