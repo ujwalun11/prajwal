@@ -62,7 +62,9 @@ def _state(session):
     return derive_state(_all(session))
 
 def _version(session):
-    last = session.scalar(select(EventRow).order_by(EventRow.seq.desc()))
+    # Only inputs that can change the recommendation advance the plan version.
+    relevant = ("site_registered", "camp_status", "stock_report", "shortage_request", "verification_report")
+    last = session.scalar(select(EventRow).where(EventRow.type.in_(relevant)).order_by(EventRow.seq.desc()))
     return f"sv-{(last.seq if last else 0):04d}"
 
 def _event(subject, typ, payload, source, author, severity="info"):
@@ -108,6 +110,7 @@ def sync(body: SyncIn):
         plan = recommend(before, _version(session))
         known_tasks = {t["task_id"] for t in build_tasks(before)}
         known_allocations = {a["allocation_id"] for a in plan["allocations"]}
+        known_allocations.update(e["subject"] for e in _all(session) if e["type"] == "delivery_update")
         known_plans = {plan["plan_id"]}
         for incoming in body.events:
             if incoming.type not in EVENT_TYPES:
