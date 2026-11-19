@@ -16,7 +16,8 @@ def parse_time(value: str | None) -> datetime | None:
 def confidence_for(event: dict, events: list[dict], now: datetime | None = None) -> float:
     """Confidence = source trust x freshness x corroboration; result clamped to [0, 1]."""
     now = now or datetime.now(timezone.utc)
-    source_factor = settings.SOURCE_TRUST.get(event.get("source"), 0.5)
+    source_key = "verification_report" if event.get("type") == "verification_report" else event.get("source")
+    source_factor = settings.SOURCE_TRUST.get(source_key, 0.5)
     half_life = settings.FRESHNESS_HALF_LIFE_MINUTES.get(event.get("type"))
     freshness = 1.0
     stamp = parse_time(event.get("server_time") or event.get("device_time"))
@@ -71,6 +72,10 @@ def derive_state(events: list[dict], now: datetime | None = None) -> dict:
             latest[("shortage_request", subject)] = e
         elif typ == "verification_report" and subject in camps:
             outcome = p.get("outcome")
+            task_id = p.get("task_id")
+            if task_id:
+                tasks[task_id] = {"task_id": task_id, "camp_id": subject,
+                                  "status": "unreachable" if outcome == "unreachable" else "completed"}
             if outcome == "differs":
                 obs = p.get("observed", {})
                 if "headcount" in obs: camps[subject]["headcount"] = obs["headcount"]
@@ -150,10 +155,16 @@ def build_tasks(state: dict, now: datetime | None = None) -> list[dict]:
                 continue
             d = haversine_km(c["location"], loc) if c.get("location") else float("inf")
             if d < distance: best, distance = user, d
+        task_id = "verify-" + camp_id
+        previous = state.get("tasks", {}).get(task_id, {})
+        status = previous.get("status", "assigned" if best else "unassigned")
+        if status == "completed":
+            continue
         out.append({
-            "task_id": "verify-" + camp_id, "kind": "verify_camp", "camp_id": camp_id,
+            "task_id": task_id, "kind": "verify_camp", "camp_id": camp_id,
             "camp_name": c["name"], "camp_location": c.get("location"),
-            "status": "assigned" if best else "unassigned", "assigned_to": best,
+            "status": status if status in ("accepted", "unreachable") else ("assigned" if best else "unassigned"),
+            "assigned_to": best,
             "reason": "No report within expected reporting interval",
             "created_at": c.get("last_report_at"), "distance_km": round(distance, 2) if best else None,
         })
