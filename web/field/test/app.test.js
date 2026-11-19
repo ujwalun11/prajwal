@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import{readFile}from'node:fs/promises';
+test('field project declares offline-first required dependencies',async()=>{const p=JSON.parse(await readFile(new URL('../package.json',import.meta.url)));for(const d of ['dexie','maplibre-gl','pmtiles','react'])assert.ok(p.dependencies[d]);assert.equal(p.scripts.test,'node --test')});
+test('field app keeps field data in IndexedDB and has offline status',async()=>{const s=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');assert.match(s,/new Dexie\('trana-field'\)/);assert.match(s,/syncOutbox|pending/);assert.match(s,/Offline/);});
