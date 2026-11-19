@@ -6,7 +6,7 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from .db import SessionLocal, EventRow, append_event, list_events
 from .engine import derive_state, build_tasks, recommend
@@ -30,6 +30,15 @@ class EventIn(BaseModel):
     verified_by: str | None = None
     location: dict | None = None
     schema_version: Literal["1"] = "1"
+
+    @field_validator("id")
+    @classmethod
+    def validate_uuid(cls, value):
+        try:
+            uuid.UUID(value)
+        except ValueError as exc:
+            raise ValueError("id must be a UUID generated on the device") from exc
+        return value
 
 class SyncIn(BaseModel):
     device_id: str
@@ -214,3 +223,12 @@ async def stream():
 @app.get("/")
 def root():
     return {"name":"TRANA API","docs":"/docs","health":"/api/health"}
+
+
+# Person C's command endpoints are mounted when the command branch is integrated.
+# Keep this optional so a/engine remains independently runnable before C's PR is merged.
+try:
+    from .command_api import command_router
+    app.include_router(command_router)
+except ImportError:
+    pass
