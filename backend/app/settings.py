@@ -3,7 +3,7 @@ from pathlib import Path
 import os
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
-DATA_DIR = Path(os.getenv("TRANA_DATA_DIR", ROOT_DIR / "data"))
+DATA_DIR = Path(os.getenv("TRANA_DATA_DIR", ROOT_DIR / "backend" / "data"))
 PHOTO_DIR = DATA_DIR / "photos"
 DATABASE_URL = os.getenv("TRANA_DATABASE_URL", f"sqlite:///{DATA_DIR / 'trana.sqlite3'}")
 
